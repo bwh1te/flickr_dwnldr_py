@@ -2,6 +2,7 @@
 
 import argparse
 import configparser
+import sys
 
 import psycopg2
 from psycopg2.extensions import AsIs
