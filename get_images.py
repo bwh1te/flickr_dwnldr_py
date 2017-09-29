@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import configparser
-import sys
 
 import psycopg2
 from psycopg2.extensions import AsIs
 
-
 from core import funcs
+from core.helpers import get_config
+
 
 if __name__ == '__main__':
 
@@ -19,47 +18,26 @@ if __name__ == '__main__':
                         help="find through place name instead of image tag")
     args = parser.parse_args()
 
-    config = configparser.ConfigParser()
-    config.read(args.config)
-
-    try:
-        DB_CONNECTION_PARAMS = {
-            'dbname': config['DB']['NAME'],
-            'host': config['DB']['HOST'],
-            'port': config['DB']['PORT'],
-            'user': config['DB']['USER'],
-            'password': config['DB']['PASSWORD'],
-        }
-        FLICKR_KEY = config['FLICKR']['KEY']
-        MAX_IMAGE_COUNT = config['APP'].getint('MAX_IMAGE_COUNT')
-        IMAGES_PER_PAGE = config['APP'].getint('IMAGES_PER_PAGE')
-        TABLE_NAME = config['APP']['IMAGES_TABLE']
-    except KeyError as e:
-        print('Please check that {key} is specified in {filename}'.format(key=e.args[0],
-                                                                          filename=args.config))
-        sys.exit(1)
+    config = get_config(args.config)
 
     image_query_params = dict(
-        per_page=IMAGES_PER_PAGE,
+        per_page=config.APP['IMAGES_PER_PAGE'],
         privacy_filter=1,
         sort='relevance'
         # geo_context='2',  # strange but doesn't work
     )
 
     if args.place:
-        places = funcs.get_places(FLICKR_KEY, args.geotag)
+        places = funcs.get_places(config.FLICKR['KEY'], args.geotag)
         image_query_params.update({'place_id': places[0]['place_id']})
     else:
         image_query_params.update({'tags': args.geotag})
 
-    with psycopg2.connect(**DB_CONNECTION_PARAMS) as conn:
-        print('Connected!')
-
+    with psycopg2.connect(**config.DB) as conn:
         with conn.cursor() as cur:
-            print('Got cursor!')
             images = funcs.get_photos(
-                FLICKR_KEY,
-                MAX_IMAGE_COUNT,
+                config.FLICKR['KEY'],
+                config.APP['MAX_IMAGE_COUNT'],
                 image_query_params
             )
             for image in images:
@@ -70,7 +48,7 @@ if __name__ == '__main__':
                     INSERT INTO %(table)s (image_url, raw_data, lat, long, file_hash)
                     VALUES (%(url)s, %(raw_data)s, %(lat)s, %(long)s, %(hash)s)""",
                     {
-                        'table': AsIs(TABLE_NAME),
+                        'table': AsIs(config.APP['IMAGES_TABLE']),
                         'url': image['url_l'],
                         'raw_data': psycopg2.Binary(image['raw_data']),
                         'lat': image['latitude'],

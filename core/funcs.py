@@ -5,7 +5,7 @@ from typing import Dict, List, Generator
 
 import requests
 
-from .helpers import FLICKR_ENDPOINT
+from .constants import FLICKR_ENDPOINT
 
 
 REQUEST_BASE_DATA = dict(
